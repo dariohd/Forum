@@ -4,7 +4,7 @@ Application forum full-stack : threads, réponses, pièces jointes — React + A
 
 | | |
 |---|---|
-| **URL production** | À déployer sur Vercel |
+| **URL production** | https://mur-libre.vercel.app |
 | **Notes techniques** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **Stack** | React 19, Vite 6, TypeScript, Neon PostgreSQL, Vercel Blob |
 

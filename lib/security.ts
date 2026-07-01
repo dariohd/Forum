@@ -1,6 +1,6 @@
-import * as blob from './blob-store'
-import { useBlobStorage } from './mode'
-import { ensureSchema, sql } from './sql'
+import * as blob from './blob-store.js'
+import { useBlobStorage } from './mode.js'
+import { ensureSchema, sql } from './sql.js'
 
 const BLOB_HOST = '.public.blob.vercel-storage.com'
 const AUTHOR_RE = /^[\p{L}\p{N}\s._-]{0,30}$/u

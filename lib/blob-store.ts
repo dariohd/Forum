@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { createHash, randomBytes } from 'crypto'
-import { hashPassword, verifyPassword, validateUsername } from './auth-core'
+import { hashPassword, verifyPassword, validateUsername } from './auth-core.js'
 import {
   findUser,
   pruneRateEvents,
@@ -13,8 +13,8 @@ import {
   type StateStroke,
   type StateText,
   type StateThread,
-} from './blob-io'
-import { sanitizeText } from './security'
+} from './blob-io.js'
+import { sanitizeText } from './security.js'
 import type {
   BoardSnapshot,
   CanvasImage,
@@ -27,7 +27,7 @@ import type {
   ThreadDetail,
   ThreadSummary,
   UserProfile,
-} from './types'
+} from './types.js'
 
 const SESSION_DAYS = 30
 

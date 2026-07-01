@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireUser } from '../lib/auth'
-import { createThread, getForumBySlug } from '../lib/forum'
-import { getSessionToken } from '../lib/http'
-import { checkRateLimit, clientIp } from '../lib/security'
+import { requireUser } from '../../lib/auth.js'
+import { createThread, getForumBySlug } from '../../lib/forum.js'
+import { getSessionToken } from '../../lib/http.js'
+import { checkRateLimit, clientIp } from '../../lib/security.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const slug = req.query.slug as string | undefined

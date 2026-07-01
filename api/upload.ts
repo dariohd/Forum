@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
-import { getUserByToken } from '../lib/auth'
-import { getSessionToken } from '../lib/http'
-import { checkRateLimit, clientIp } from '../lib/security'
+import { getUserByToken } from '../lib/auth.js'
+import { getSessionToken } from '../lib/http.js'
+import { checkRateLimit, clientIp } from '../lib/security.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -32,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         maximumSizeInBytes: 8 * 1024 * 1024,
         addRandomSuffix: true,
       }),
+      onUploadCompleted: async () => {},
     })
 
     return res.status(200).json(jsonResponse)

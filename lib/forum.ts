@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto'
-import * as blob from './blob-store'
-import { useBlobStorage } from './mode'
-import { ensureSchema, sql } from './sql'
-import { sanitizeText } from './security'
-import type { Forum, PublicUser, Reply, SitePage, ThreadDetail, ThreadSummary, UserProfile } from './types'
+import * as blob from './blob-store.js'
+import { useBlobStorage } from './mode.js'
+import { ensureSchema, sql } from './sql.js'
+import { sanitizeText } from './security.js'
+import type { Forum, PublicUser, Reply, SitePage, ThreadDetail, ThreadSummary, UserProfile } from './types.js'
 
 function mapUser(row: { id: string; username: string; display_name: string; bio: string; created_at: string }): PublicUser {
   return {

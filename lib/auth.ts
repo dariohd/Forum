@@ -1,13 +1,13 @@
 import { randomUUID, randomBytes } from 'crypto'
-import * as blob from './blob-store'
-import { hashPassword, validateUsername, verifyPassword } from './auth-core'
-import { useBlobStorage } from './mode'
-import { ensureSchema, sql } from './sql'
-import type { PublicUser } from './types'
+import * as blob from './blob-store.js'
+import { hashPassword, validateUsername, verifyPassword } from './auth-core.js'
+import { useBlobStorage } from './mode.js'
+import { ensureSchema, sql } from './sql.js'
+import type { PublicUser } from './types.js'
 
 const SESSION_DAYS = 30
 
-export { validateUsername, hashPassword, verifyPassword } from './auth-core'
+export { validateUsername, hashPassword, verifyPassword } from './auth-core.js'
 
 export async function registerUser(input: {
   username: string

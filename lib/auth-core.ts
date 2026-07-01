@@ -22,7 +22,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const derived = (await scryptAsync(password, salt, 64)) as Buffer
   const expected = Buffer.from(hash, 'hex')
   if (expected.length !== derived.length) return false
-  return timingSafeEqual(expected, derived)
+  return timingSafeEqual(new Uint8Array(derived), new Uint8Array(expected))
 }
 
 export function hashToken(token: string) {

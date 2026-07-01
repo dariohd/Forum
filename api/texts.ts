@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { addText } from '../lib/db'
+import { addText } from '../lib/db.js'
 import {
   checkRateLimit,
   clamp01,
@@ -7,7 +7,7 @@ import {
   sanitizeAuthor,
   sanitizeColor,
   sanitizeText,
-} from '../lib/security'
+} from '../lib/security.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto'
-import * as blob from './blob-store'
-import { useBlobStorage } from './mode'
-import { ensureSchema, sql } from './sql'
-import type { BoardSnapshot, CanvasImage, Stroke, TextItem } from './types'
+import * as blob from './blob-store.js'
+import { useBlobStorage } from './mode.js'
+import { ensureSchema, sql } from './sql.js'
+import type { BoardSnapshot, CanvasImage, Stroke, TextItem } from './types.js'
 
 type StrokeRow = {
   id: string
@@ -107,9 +107,10 @@ export async function getStats(): Promise<{ strokes: number; texts: number; imag
   await ensureSchema()
   const db = sql()
   const [s, t, i] = await Promise.all([
-    db`SELECT COUNT(*)::int AS c FROM strokes` as Promise<{ c: number }[]>,
-    db`SELECT COUNT(*)::int AS c FROM text_items` as Promise<{ c: number }[]>,
-    db`SELECT COUNT(*)::int AS c FROM canvas_images` as Promise<{ c: number }[]>,
+    db`SELECT COUNT(*)::int AS c FROM strokes`,
+    db`SELECT COUNT(*)::int AS c FROM text_items`,
+    db`SELECT COUNT(*)::int AS c FROM canvas_images`,
   ])
-  return { strokes: s[0]?.c ?? 0, texts: t[0]?.c ?? 0, images: i[0]?.c ?? 0 }
+  const count = (rows: Record<string, unknown>[]) => Number(rows[0]?.c ?? 0)
+  return { strokes: count(s), texts: count(t), images: count(i) }
 }
