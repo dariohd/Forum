@@ -9,12 +9,15 @@ const SESSION_DAYS = 30
 
 export { validateUsername, hashPassword, verifyPassword } from './auth-core.js'
 
-export async function registerUser(input: {
-  username: string
-  password: string
-  displayName: string
-}): Promise<{ user: PublicUser; token: string }> {
-  if (useBlobStorage()) return blob.blobRegisterUser(input)
+export async function registerUser(
+  input: {
+    username: string
+    password: string
+    displayName: string
+  },
+  rate?: { key: string; max: number; windowSec: number },
+): Promise<{ user: PublicUser; token: string }> {
+  if (useBlobStorage()) return blob.blobRegisterUser(input, rate)
 
   await ensureSchema()
   const db = sql()
@@ -36,8 +39,12 @@ export async function registerUser(input: {
   return { user: { id, username, displayName, bio: '', createdAt: new Date().toISOString() }, token }
 }
 
-export async function loginUser(username: string, password: string): Promise<{ user: PublicUser; token: string }> {
-  if (useBlobStorage()) return blob.blobLoginUser(username, password)
+export async function loginUser(
+  username: string,
+  password: string,
+  rate?: { key: string; max: number; windowSec: number },
+): Promise<{ user: PublicUser; token: string }> {
+  if (useBlobStorage()) return blob.blobLoginUser(username, password, rate)
 
   await ensureSchema()
   const db = sql()
