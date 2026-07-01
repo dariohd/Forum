@@ -1,4 +1,4 @@
-import { list, put } from '@vercel/blob'
+import { get, list, put } from '@vercel/blob'
 import { assertStorageConfigured } from './mode.js'
 
 const STATE_PATH = 'mur-libre/site-state.json'
@@ -144,9 +144,10 @@ async function loadState(): Promise<SiteState> {
   const blob = blobs.find((b) => b.pathname === STATE_PATH)
   if (!blob) return defaultState()
 
-  const res = await fetch(blob.url)
-  if (!res.ok) return defaultState()
-  const text = await res.text()
+  const file = await get(blob.pathname, { access: 'private' })
+  if (!file || file.statusCode !== 200 || !file.stream) return defaultState()
+
+  const text = await new Response(file.stream).text()
   try {
     const parsed = JSON.parse(text) as Partial<SiteState>
     if (parsed && Array.isArray(parsed.forums)) {
@@ -170,7 +171,7 @@ async function loadState(): Promise<SiteState> {
 async function saveState(state: SiteState): Promise<void> {
   assertStorageConfigured()
   await put(STATE_PATH, JSON.stringify(state), {
-    access: 'public',
+    access: 'private',
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json',

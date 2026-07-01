@@ -10,7 +10,7 @@ export async function uploadImage(file: File) {
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || 'image'
   const blob = await upload(`mur/${Date.now()}-${safeName}`, file, {
-    access: 'public',
+    access: 'private',
     handleUploadUrl: '/api/upload',
   })
   return blob.url
