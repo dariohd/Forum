@@ -189,19 +189,19 @@ async function saveState(state: SiteState, etag?: string): Promise<void> {
 
 function isPreconditionError(e: unknown): boolean {
   return e instanceof BlobPreconditionFailedError
-    || (e instanceof Error && e.name === 'BlobPreconditionFailedError')
+    || (e instanceof Error && /precondition|etag mismatch/i.test(e.message))
 }
 
 export async function withState<T>(fn: (state: SiteState) => T | Promise<T>): Promise<T> {
   let lastError: unknown
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < 12; attempt++) {
     const { state, etag } = await loadState()
     try {
       const result = await fn(state)
       try {
         await saveState(state, etag)
       } catch (e) {
-        if (isPreconditionError(e) && attempt < 7) {
+        if (isPreconditionError(e) && attempt < 11) {
           await new Promise((r) => setTimeout(r, 25 * (attempt + 1)))
           continue
         }
