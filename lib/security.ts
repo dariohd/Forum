@@ -1,4 +1,4 @@
-import * as blob from './blob-store.js'
+import { blobCheckRateLimit } from './blob-rate-io.js'
 import { useBlobStorage } from './mode.js'
 import { ensureSchema, sql } from './sql.js'
 
@@ -50,7 +50,7 @@ export function isValidBlobUrl(url: string): boolean {
 }
 
 export async function checkRateLimit(key: string, max: number, windowSec: number): Promise<void> {
-  if (useBlobStorage()) return blob.blobCheckRateLimit(key, max, windowSec)
+  if (useBlobStorage()) return blobCheckRateLimit(key, max, windowSec)
 
   await ensureSchema()
   const db = sql()

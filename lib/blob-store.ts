@@ -3,7 +3,6 @@ import { createHash, randomBytes } from 'crypto'
 import { hashPassword, verifyPassword, validateUsername } from './auth-core.js'
 import {
   findUser,
-  pruneRateEvents,
   publicUser,
   readAuthState,
   withAuthState,
@@ -80,14 +79,6 @@ function mapReply(auth: AuthState, r: StateReply): Reply {
   }
 }
 
-export async function blobCheckRateLimit(key: string, max: number, windowSec: number): Promise<void> {
-  await withAuthState((state) => {
-    pruneRateEvents(state, windowSec)
-    const count = state.rateEvents.filter((e) => e.key === key).length
-    if (count >= max) throw new Error('Trop de requêtes. Réessaie dans un instant.')
-    state.rateEvents.push({ key, createdAt: new Date().toISOString() })
-  })
-}
 
 export async function blobGetBoard(since?: string): Promise<BoardSnapshot> {
   return readState((state) => {
@@ -136,14 +127,11 @@ export async function blobAddImage(input: Omit<CanvasImage, 'id' | 'createdAt'>)
   return mapImage(image)
 }
 
-export async function blobRegisterUser(
-  input: {
-    username: string
-    password: string
-    displayName: string
-  },
-  rate?: { key: string; max: number; windowSec: number },
-): Promise<{ user: PublicUser; token: string }> {
+export async function blobRegisterUser(input: {
+  username: string
+  password: string
+  displayName: string
+}): Promise<{ user: PublicUser; token: string }> {
   const username = validateUsername(input.username)
   if (!username) throw new Error('Pseudo invalide (3–24 caractères, lettres, chiffres, _).')
   if (input.password.length < 8) throw new Error('Mot de passe trop court (8 caractères min).')
@@ -157,12 +145,6 @@ export async function blobRegisterUser(
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
 
   await withAuthState((state) => {
-    if (rate) {
-      pruneRateEvents(state, rate.windowSec)
-      const count = state.rateEvents.filter((e) => e.key === rate.key).length
-      if (count >= rate.max) throw new Error('Trop de requêtes. Réessaie dans un instant.')
-      state.rateEvents.push({ key: rate.key, createdAt: new Date().toISOString() })
-    }
     if (state.users.some((u) => u.username === username)) throw new Error('Ce pseudo est déjà pris.')
     state.users.push({ id, username, passwordHash, displayName, bio: '', createdAt })
     state.sessions.push({ id: randomUUID(), userId: id, tokenHash, expiresAt })
@@ -171,11 +153,7 @@ export async function blobRegisterUser(
   return { user: { id, username, displayName, bio: '', createdAt }, token }
 }
 
-export async function blobLoginUser(
-  username: string,
-  password: string,
-  rate?: { key: string; max: number; windowSec: number },
-): Promise<{ user: PublicUser; token: string }> {
+export async function blobLoginUser(username: string, password: string): Promise<{ user: PublicUser; token: string }> {
   const name = validateUsername(username)
   if (!name) throw new Error('Identifiants incorrects.')
 
@@ -189,12 +167,6 @@ export async function blobLoginUser(
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
 
   await withAuthState((state) => {
-    if (rate) {
-      pruneRateEvents(state, rate.windowSec)
-      const count = state.rateEvents.filter((e) => e.key === rate.key).length
-      if (count >= rate.max) throw new Error('Trop de requêtes. Réessaie dans un instant.')
-      state.rateEvents.push({ key: rate.key, createdAt: new Date().toISOString() })
-    }
     state.sessions.push({ id: randomUUID(), userId: user.id, tokenHash, expiresAt })
   })
 

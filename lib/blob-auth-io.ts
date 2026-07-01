@@ -8,16 +8,12 @@ function blobToken() {
   return process.env.BLOB_READ_WRITE_TOKEN
 }
 
-type RateEvent = { key: string; createdAt: string }
-
-export type AuthState = {
   users: StateUser[]
   sessions: StateSession[]
-  rateEvents: RateEvent[]
 }
 
 function defaultAuthState(): AuthState {
-  return { users: [], sessions: [], rateEvents: [] }
+  return { users: [], sessions: [] }
 }
 
 async function loadAuth(): Promise<{ state: AuthState; etag?: string }> {
@@ -30,7 +26,6 @@ async function loadAuth(): Promise<{ state: AuthState; etag?: string }> {
         state: {
           users: parsed.users ?? [],
           sessions: parsed.sessions ?? [],
-          rateEvents: parsed.rateEvents ?? [],
         },
         etag: file.blob.etag,
       }
@@ -87,11 +82,6 @@ export async function withAuthState<T>(fn: (state: AuthState) => T | Promise<T>)
 export async function readAuthState<T>(fn: (state: AuthState) => T): Promise<T> {
   const { state } = await loadAuth()
   return fn(state)
-}
-
-export function pruneRateEvents(state: AuthState, windowSec: number) {
-  const cutoff = Date.now() - windowSec * 1000
-  state.rateEvents = state.rateEvents.filter((e) => new Date(e.createdAt).getTime() >= cutoff)
 }
 
 export function findUser(state: AuthState, id: string): StateUser | undefined {
