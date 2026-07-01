@@ -84,20 +84,13 @@ npm run dev:local
 
 ## Déploiement Vercel
 
-1. `vercel link` puis `vercel env pull`
-2. Configurer `DATABASE_URL` et `BLOB_READ_WRITE_TOKEN` sur Vercel
-3. `vercel deploy` ou push GitHub si projet lié
-4. Exécuter `db:init` une fois contre la base de production
-
-## Sécurité
-
-- Ne jamais committer `.env`
-- Token Blob en variable d'environnement uniquement
-- Valider taille / type des uploads côté API
+1. Installer l’intégration **Neon** → [docs/NEON-SETUP.md](docs/NEON-SETUP.md)
+2. Variables : `DATABASE_URL` + `BLOB_READ_WRITE_TOKEN`
+3. `npm run db:init` une fois contre la base de prod
+4. Push GitHub ou `npx vercel deploy --prod`
 
 ## Pistes d'évolution
 
-- Authentification utilisateurs
 - Modération admin
 - Pagination threads
 - Notifications email

@@ -8,7 +8,9 @@ Le client React appelle `/api/*`. En local avec `vercel dev`, les fonctions serv
 
 ## Données
 
-Neon PostgreSQL : schéma créé par `scripts/init-db.mjs` (tables threads, posts, etc.). Les pièces jointes vont sur Vercel Blob ; l'API stocke l'URL en base.
+**Neon PostgreSQL** en production (obligatoire sur Vercel) : schéma via `scripts/init-db.mjs` ou `ensureSchema()` au premier appel. **Vercel Blob** pour les pièces jointes (URL stockée en base).
+
+Mode Blob seul (sans `DATABASE_URL`) : dev local uniquement — voir [NEON-SETUP.md](NEON-SETUP.md).
 
 ## Build
 

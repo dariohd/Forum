@@ -1,7 +1,7 @@
 import { randomUUID, randomBytes } from 'crypto'
 import * as blob from './blob-store.js'
 import { hashPassword, validateUsername, verifyPassword } from './auth-core.js'
-import { useBlobStorage } from './mode.js'
+import { useBlobStorage, assertAuthDatabase } from './mode.js'
 import { ensureSchema, sql } from './sql.js'
 import type { PublicUser } from './types.js'
 
@@ -14,6 +14,7 @@ export async function registerUser(input: {
   password: string
   displayName: string
 }): Promise<{ user: PublicUser; token: string }> {
+  assertAuthDatabase()
   if (useBlobStorage()) return blob.blobRegisterUser(input)
 
   await ensureSchema()
@@ -37,6 +38,7 @@ export async function registerUser(input: {
 }
 
 export async function loginUser(username: string, password: string): Promise<{ user: PublicUser; token: string }> {
+  assertAuthDatabase()
   if (useBlobStorage()) return blob.blobLoginUser(username, password)
 
   await ensureSchema()
@@ -68,6 +70,7 @@ export async function loginUser(username: string, password: string): Promise<{ u
 }
 
 export async function createSession(userId: string): Promise<string> {
+  assertAuthDatabase()
   if (useBlobStorage()) return blob.blobCreateSession(userId)
 
   await ensureSchema()
@@ -80,9 +83,9 @@ export async function createSession(userId: string): Promise<string> {
 }
 
 export async function getUserByToken(token: string | undefined): Promise<PublicUser | null> {
-  if (useBlobStorage()) return blob.blobGetUserByToken(token)
-
   if (!token) return null
+  if (process.env.VERCEL && !process.env.DATABASE_URL) return null
+  if (useBlobStorage()) return blob.blobGetUserByToken(token)
   await ensureSchema()
   const db = sql()
   const { hashToken } = await import('./auth-core')
@@ -104,8 +107,9 @@ export async function getUserByToken(token: string | undefined): Promise<PublicU
 }
 
 export async function logoutToken(token: string | undefined): Promise<void> {
-  if (useBlobStorage()) return blob.blobLogoutToken(token)
   if (!token) return
+  if (process.env.VERCEL && !process.env.DATABASE_URL) return
+  if (useBlobStorage()) return blob.blobLogoutToken(token)
   await ensureSchema()
   const db = sql()
   const { hashToken } = await import('./auth-core')
