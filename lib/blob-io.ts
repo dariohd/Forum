@@ -164,21 +164,22 @@ async function loadState(): Promise<SiteState> {
         }
       }
     }
-  } catch {
-    /* premier chargement ou blob absent */
+  } catch (e) {
+    console.error('[blob-io] loadState failed:', e)
   }
   return defaultState()
 }
 
 async function saveState(state: SiteState): Promise<void> {
   assertStorageConfigured()
-  await put(STATE_PATH, JSON.stringify(state), {
+  const result = await put(STATE_PATH, JSON.stringify(state), {
     access: 'private',
     token: blobToken(),
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json',
   })
+  console.error('[blob-io] saved', result.pathname, 'users=', state.users.length, 'sessions=', state.sessions.length)
 }
 
 export async function withState<T>(fn: (state: SiteState) => T | Promise<T>): Promise<T> {

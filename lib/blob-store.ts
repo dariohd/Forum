@@ -99,6 +99,8 @@ export async function blobGetStats() {
     strokes: state.strokes.length,
     texts: state.texts.length,
     images: state.images.length,
+    users: state.users.length,
+    sessions: state.sessions.length,
   }))
 }
 
