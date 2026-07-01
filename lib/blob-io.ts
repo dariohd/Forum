@@ -3,6 +3,10 @@ import { assertStorageConfigured } from './mode.js'
 
 const STATE_PATH = 'mur-libre/site-state.json'
 
+function blobToken() {
+  return process.env.BLOB_READ_WRITE_TOKEN
+}
+
 type RateEvent = { key: string; createdAt: string }
 
 export type StateUser = {
@@ -141,7 +145,7 @@ Les pages regroupent les contenus permanents du site.`,
 async function loadState(): Promise<SiteState> {
   assertStorageConfigured()
   try {
-    const file = await get(STATE_PATH, { access: 'private' })
+    const file = await get(STATE_PATH, { access: 'private', token: blobToken() })
     if (file?.statusCode === 200 && file.stream) {
       const text = await new Response(file.stream).text()
       const parsed = JSON.parse(text) as Partial<SiteState>
@@ -170,6 +174,7 @@ async function saveState(state: SiteState): Promise<void> {
   assertStorageConfigured()
   await put(STATE_PATH, JSON.stringify(state), {
     access: 'private',
+    token: blobToken(),
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json',
