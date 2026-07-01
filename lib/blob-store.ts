@@ -5,6 +5,11 @@ import {
   findUser,
   pruneRateEvents,
   publicUser,
+  readAuthState,
+  withAuthState,
+  type AuthState,
+} from './blob-auth-io.js'
+import {
   readState,
   withState,
   type SiteState,
@@ -47,32 +52,36 @@ function mapImage(i: StateImage): CanvasImage {
   return { id: i.id, x: i.x, y: i.y, width: i.width, height: i.height, url: i.url, author: i.author, createdAt: i.createdAt }
 }
 
-function threadSummary(state: SiteState, t: StateThread): ThreadSummary {
-  const author = findUser(state, t.authorId)!
+function authorPublic(auth: AuthState, authorId: string): PublicUser {
+  const user = findUser(auth, authorId)
+  if (user) return publicUser(user)
+  return { id: authorId, username: 'inconnu', displayName: 'Utilisateur', bio: '', createdAt: new Date(0).toISOString() }
+}
+
+function threadSummary(state: SiteState, auth: AuthState, t: StateThread): ThreadSummary {
   return {
     id: t.id,
     forumId: t.forumId,
     title: t.title,
-    author: publicUser(author),
+    author: authorPublic(auth, t.authorId),
     replyCount: state.replies.filter((r) => r.threadId === t.id).length,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
 }
 
-function mapReply(state: SiteState, r: StateReply): Reply {
-  const author = findUser(state, r.authorId)!
+function mapReply(auth: AuthState, r: StateReply): Reply {
   return {
     id: r.id,
     threadId: r.threadId,
     content: r.content,
-    author: publicUser(author),
+    author: authorPublic(auth, r.authorId),
     createdAt: r.createdAt,
   }
 }
 
 export async function blobCheckRateLimit(key: string, max: number, windowSec: number): Promise<void> {
-  await withState((state) => {
+  await withAuthState((state) => {
     pruneRateEvents(state, windowSec)
     const count = state.rateEvents.filter((e) => e.key === key).length
     if (count >= max) throw new Error('Trop de requêtes. Réessaie dans un instant.')
@@ -95,13 +104,18 @@ export async function blobGetBoard(since?: string): Promise<BoardSnapshot> {
 }
 
 export async function blobGetStats() {
-  return readState((state) => ({
-    strokes: state.strokes.length,
-    texts: state.texts.length,
-    images: state.images.length,
-    users: state.users.length,
-    sessions: state.sessions.length,
-  }))
+  const [site, auth] = await Promise.all([
+    readState((state) => ({
+      strokes: state.strokes.length,
+      texts: state.texts.length,
+      images: state.images.length,
+    })),
+    readAuthState((auth) => ({
+      users: auth.users.length,
+      sessions: auth.sessions.length,
+    })),
+  ])
+  return { ...site, ...auth }
 }
 
 export async function blobAddStroke(input: Omit<Stroke, 'id' | 'createdAt'>): Promise<Stroke> {
@@ -139,7 +153,7 @@ export async function blobRegisterUser(input: {
   const tokenHash = hashToken(token)
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
 
-  await withState((state) => {
+  await withAuthState((state) => {
     if (state.users.some((u) => u.username === username)) throw new Error('Ce pseudo est déjà pris.')
     state.users.push({ id, username, passwordHash, displayName, bio: '', createdAt })
     state.sessions.push({ id: randomUUID(), userId: id, tokenHash, expiresAt })
@@ -152,7 +166,7 @@ export async function blobLoginUser(username: string, password: string): Promise
   const name = validateUsername(username)
   if (!name) throw new Error('Identifiants incorrects.')
 
-  const user = await readState((state) => state.users.find((u) => u.username === name))
+  const user = await readAuthState((state) => state.users.find((u) => u.username === name))
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     throw new Error('Identifiants incorrects.')
   }
@@ -166,7 +180,7 @@ export async function blobCreateSession(userId: string): Promise<string> {
   const tokenHash = hashToken(token)
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
 
-  await withState((state) => {
+  await withAuthState((state) => {
     state.sessions.push({ id: randomUUID(), userId, tokenHash, expiresAt })
   })
   return token
@@ -177,7 +191,7 @@ export async function blobGetUserByToken(token: string | undefined): Promise<Pub
   const tokenHash = hashToken(token)
   const now = Date.now()
 
-  return readState((state) => {
+  return readAuthState((state) => {
     const session = state.sessions.find((s) => s.tokenHash === tokenHash && new Date(s.expiresAt).getTime() > now)
     if (!session) return null
     const user = findUser(state, session.userId)
@@ -188,7 +202,7 @@ export async function blobGetUserByToken(token: string | undefined): Promise<Pub
 export async function blobLogoutToken(token: string | undefined): Promise<void> {
   if (!token) return
   const tokenHash = hashToken(token)
-  await withState((state) => {
+  await withAuthState((state) => {
     state.sessions = state.sessions.filter((s) => s.tokenHash !== tokenHash)
   })
 }
@@ -209,13 +223,14 @@ export async function blobListForums(): Promise<Forum[]> {
 }
 
 export async function blobGetForumBySlug(slug: string) {
+  const auth = await readAuthState((a) => a)
   return readState((state) => {
     const f = state.forums.find((x) => x.slug === slug)
     if (!f) return null
     const threads = state.threads
       .filter((t) => t.forumId === f.id)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .map((t) => threadSummary(state, t))
+      .map((t) => threadSummary(state, auth, t))
 
     return {
       forum: {
@@ -245,30 +260,35 @@ export async function blobCreateThread(forumSlug: string, authorId: string, titl
     state.threads.push(thread)
   })
 
-  return readState((state) => threadSummary(state, thread))
+  const [state, auth] = await Promise.all([
+    readState((s) => s),
+    readAuthState((a) => a),
+  ])
+  return threadSummary(state, auth, thread)
 }
 
 export async function blobGetThread(id: string): Promise<ThreadDetail | null> {
-  return readState((state) => {
-    const t = state.threads.find((x) => x.id === id)
-    if (!t) return null
-    const forum = state.forums.find((f) => f.id === t.forumId)!
-    const author = findUser(state, t.authorId)!
-    const replies = state.replies
-      .filter((r) => r.threadId === id)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-      .map((r) => mapReply(state, r))
+  const [state, auth] = await Promise.all([
+    readState((s) => s),
+    readAuthState((a) => a),
+  ])
+  const t = state.threads.find((x) => x.id === id)
+  if (!t) return null
+  const forum = state.forums.find((f) => f.id === t.forumId)!
+  const replies = state.replies
+    .filter((r) => r.threadId === id)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((r) => mapReply(auth, r))
 
-    return {
-      id: t.id,
-      title: t.title,
-      forum: { id: forum.id, slug: forum.slug, name: forum.name },
-      author: publicUser(author),
-      replies,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    }
-  })
+  return {
+    id: t.id,
+    title: t.title,
+    forum: { id: forum.id, slug: forum.slug, name: forum.name },
+    author: authorPublic(auth, t.authorId),
+    replies,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  }
 }
 
 export async function blobAddReply(threadId: string, authorId: string, content: string): Promise<Reply> {
@@ -284,10 +304,12 @@ export async function blobAddReply(threadId: string, authorId: string, content: 
     thread.updatedAt = reply.createdAt
   })
 
-  return readState((state) => mapReply(state, reply))
+  const auth = await readAuthState((a) => a)
+  return mapReply(auth, reply)
 }
 
 export async function blobListPages(): Promise<SitePage[]> {
+  const auth = await readAuthState((a) => a)
   return readState((state) =>
     state.pages
       .filter((p) => p.published)
@@ -297,7 +319,7 @@ export async function blobListPages(): Promise<SitePage[]> {
         slug: p.slug,
         title: p.title,
         content: p.content,
-        author: p.authorId ? publicUser(findUser(state, p.authorId)!) : null,
+        author: p.authorId ? authorPublic(auth, p.authorId) : null,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
       })),
@@ -305,6 +327,7 @@ export async function blobListPages(): Promise<SitePage[]> {
 }
 
 export async function blobGetPageBySlug(slug: string): Promise<SitePage | null> {
+  const auth = await readAuthState((a) => a)
   return readState((state) => {
     const p = state.pages.find((x) => x.slug === slug && x.published)
     if (!p) return null
@@ -313,7 +336,7 @@ export async function blobGetPageBySlug(slug: string): Promise<SitePage | null> 
       slug: p.slug,
       title: p.title,
       content: p.content,
-      author: p.authorId ? publicUser(findUser(state, p.authorId)!) : null,
+      author: p.authorId ? authorPublic(auth, p.authorId) : null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     }
@@ -321,13 +344,15 @@ export async function blobGetPageBySlug(slug: string): Promise<SitePage | null> 
 }
 
 export async function blobGetUserProfile(username: string): Promise<UserProfile | null> {
-  return readState((state) => {
-    const u = state.users.find((x) => x.username === username.toLowerCase())
-    if (!u) return null
-    return {
-      ...publicUser(u),
-      threadCount: state.threads.filter((t) => t.authorId === u.id).length,
-      replyCount: state.replies.filter((r) => r.authorId === u.id).length,
-    }
-  })
+  const [state, auth] = await Promise.all([
+    readState((s) => s),
+    readAuthState((a) => a),
+  ])
+  const u = auth.users.find((x) => x.username === username.toLowerCase())
+  if (!u) return null
+  return {
+    ...publicUser(u),
+    threadCount: state.threads.filter((t) => t.authorId === u.id).length,
+    replyCount: state.replies.filter((r) => r.authorId === u.id).length,
+  }
 }

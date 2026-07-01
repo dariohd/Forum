@@ -7,8 +7,6 @@ function blobToken() {
   return process.env.BLOB_READ_WRITE_TOKEN
 }
 
-type RateEvent = { key: string; createdAt: string }
-
 export type StateUser = {
   id: string
   username: string
@@ -95,8 +93,6 @@ export type StateImage = {
 }
 
 export type SiteState = {
-  users: StateUser[]
-  sessions: StateSession[]
   forums: StateForum[]
   threads: StateThread[]
   replies: StateReply[]
@@ -104,14 +100,11 @@ export type SiteState = {
   strokes: StateStroke[]
   texts: StateText[]
   images: StateImage[]
-  rateEvents: RateEvent[]
 }
 
 function defaultState(): SiteState {
   const now = new Date().toISOString()
   return {
-    users: [],
-    sessions: [],
     forums: [
       { id: 'f-general', slug: 'general', name: 'Général', description: 'Discussions libres et présentations.', sortOrder: 0, createdAt: now },
       { id: 'f-creations', slug: 'creations', name: 'Créations', description: 'Dessins, projets et idées du mur.', sortOrder: 1, createdAt: now },
@@ -138,24 +131,20 @@ Les pages regroupent les contenus permanents du site.`,
     strokes: [],
     texts: [],
     images: [],
-    rateEvents: [],
   }
 }
 
 function parseState(text: string): SiteState {
-  const parsed = JSON.parse(text) as Partial<SiteState>
+  const parsed = JSON.parse(text) as Partial<SiteState> & { users?: unknown; sessions?: unknown; rateEvents?: unknown }
   if (parsed && Array.isArray(parsed.forums)) {
     return {
       ...defaultState(),
       ...parsed,
-      users: parsed.users ?? [],
-      sessions: parsed.sessions ?? [],
       threads: parsed.threads ?? [],
       replies: parsed.replies ?? [],
       strokes: parsed.strokes ?? [],
       texts: parsed.texts ?? [],
       images: parsed.images ?? [],
-      rateEvents: parsed.rateEvents ?? [],
     }
   }
   return defaultState()
@@ -222,23 +211,4 @@ export async function withState<T>(fn: (state: SiteState) => T | Promise<T>): Pr
 export async function readState<T>(fn: (state: SiteState) => T): Promise<T> {
   const { state } = await loadState()
   return fn(state)
-}
-
-export async function pruneRateEvents(state: SiteState, windowSec: number) {
-  const cutoff = Date.now() - windowSec * 1000
-  state.rateEvents = state.rateEvents.filter((e) => new Date(e.createdAt).getTime() >= cutoff)
-}
-
-export function findUser(state: SiteState, id: string): StateUser | undefined {
-  return state.users.find((u) => u.id === id)
-}
-
-export function publicUser(u: StateUser) {
-  return {
-    id: u.id,
-    username: u.username,
-    displayName: u.displayName,
-    bio: u.bio,
-    createdAt: u.createdAt,
-  }
 }
