@@ -133,13 +133,16 @@ export async function blobRegisterUser(input: {
   const passwordHash = await hashPassword(input.password)
   const id = randomUUID()
   const createdAt = new Date().toISOString()
+  const token = randomBytes(32).toString('hex')
+  const tokenHash = hashToken(token)
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
 
   await withState((state) => {
     if (state.users.some((u) => u.username === username)) throw new Error('Ce pseudo est déjà pris.')
     state.users.push({ id, username, passwordHash, displayName, bio: '', createdAt })
+    state.sessions.push({ id: randomUUID(), userId: id, tokenHash, expiresAt })
   })
 
-  const token = await blobCreateSession(id)
   return { user: { id, username, displayName, bio: '', createdAt }, token }
 }
 

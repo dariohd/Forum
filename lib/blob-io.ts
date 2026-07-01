@@ -1,4 +1,4 @@
-import { get, list, put } from '@vercel/blob'
+import { get, put } from '@vercel/blob'
 import { assertStorageConfigured } from './mode.js'
 
 const STATE_PATH = 'mur-libre/site-state.json'
@@ -140,31 +140,29 @@ Les pages regroupent les contenus permanents du site.`,
 
 async function loadState(): Promise<SiteState> {
   assertStorageConfigured()
-  const { blobs } = await list({ prefix: STATE_PATH, limit: 1 })
-  const blob = blobs.find((b) => b.pathname === STATE_PATH)
-  if (!blob) return defaultState()
-
-  const file = await get(blob.pathname, { access: 'private' })
-  if (!file || file.statusCode !== 200 || !file.stream) return defaultState()
-
-  const text = await new Response(file.stream).text()
   try {
-    const parsed = JSON.parse(text) as Partial<SiteState>
-    if (parsed && Array.isArray(parsed.forums)) {
-      return {
-        ...defaultState(),
-        ...parsed,
-        users: parsed.users ?? [],
-        sessions: parsed.sessions ?? [],
-        threads: parsed.threads ?? [],
-        replies: parsed.replies ?? [],
-        strokes: parsed.strokes ?? [],
-        texts: parsed.texts ?? [],
-        images: parsed.images ?? [],
-        rateEvents: parsed.rateEvents ?? [],
+    const file = await get(STATE_PATH, { access: 'private' })
+    if (file?.statusCode === 200 && file.stream) {
+      const text = await new Response(file.stream).text()
+      const parsed = JSON.parse(text) as Partial<SiteState>
+      if (parsed && Array.isArray(parsed.forums)) {
+        return {
+          ...defaultState(),
+          ...parsed,
+          users: parsed.users ?? [],
+          sessions: parsed.sessions ?? [],
+          threads: parsed.threads ?? [],
+          replies: parsed.replies ?? [],
+          strokes: parsed.strokes ?? [],
+          texts: parsed.texts ?? [],
+          images: parsed.images ?? [],
+          rateEvents: parsed.rateEvents ?? [],
+        }
       }
     }
-  } catch { /* état initial */ }
+  } catch {
+    /* premier chargement ou blob absent */
+  }
   return defaultState()
 }
 
