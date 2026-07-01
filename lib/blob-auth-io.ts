@@ -38,14 +38,19 @@ async function loadAuth(): Promise<{ state: AuthState; etag?: string }> {
 }
 
 async function saveAuth(state: AuthState, etag?: string): Promise<void> {
-  await put(AUTH_PATH, JSON.stringify(state), {
-    access: 'private',
+  const opts = {
+    access: 'private' as const,
     token: blobToken(),
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json',
-    ...(etag ? { ifMatch: etag } : {}),
-  })
+  }
+  try {
+    await put(AUTH_PATH, JSON.stringify(state), { ...opts, ...(etag ? { ifMatch: etag } : {}) })
+  } catch (e) {
+    if (!isPreconditionError(e)) throw e
+    await put(AUTH_PATH, JSON.stringify(state), opts)
+  }
 }
 
 function isPreconditionError(e: unknown): boolean {
