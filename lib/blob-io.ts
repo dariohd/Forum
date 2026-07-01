@@ -1,4 +1,4 @@
-import { get, put } from '@vercel/blob'
+import { BlobPreconditionFailedError, get, put } from '@vercel/blob'
 import { assertStorageConfigured } from './mode.js'
 
 const STATE_PATH = 'mur-libre/site-state.json'
@@ -142,55 +142,76 @@ Les pages regroupent les contenus permanents du site.`,
   }
 }
 
-async function loadState(): Promise<SiteState> {
+function parseState(text: string): SiteState {
+  const parsed = JSON.parse(text) as Partial<SiteState>
+  if (parsed && Array.isArray(parsed.forums)) {
+    return {
+      ...defaultState(),
+      ...parsed,
+      users: parsed.users ?? [],
+      sessions: parsed.sessions ?? [],
+      threads: parsed.threads ?? [],
+      replies: parsed.replies ?? [],
+      strokes: parsed.strokes ?? [],
+      texts: parsed.texts ?? [],
+      images: parsed.images ?? [],
+      rateEvents: parsed.rateEvents ?? [],
+    }
+  }
+  return defaultState()
+}
+
+async function loadState(): Promise<{ state: SiteState; etag?: string }> {
   assertStorageConfigured()
   try {
     const file = await get(STATE_PATH, { access: 'private', token: blobToken() })
     if (file?.statusCode === 200 && file.stream) {
       const text = await new Response(file.stream).text()
-      const parsed = JSON.parse(text) as Partial<SiteState>
-      if (parsed && Array.isArray(parsed.forums)) {
-        return {
-          ...defaultState(),
-          ...parsed,
-          users: parsed.users ?? [],
-          sessions: parsed.sessions ?? [],
-          threads: parsed.threads ?? [],
-          replies: parsed.replies ?? [],
-          strokes: parsed.strokes ?? [],
-          texts: parsed.texts ?? [],
-          images: parsed.images ?? [],
-          rateEvents: parsed.rateEvents ?? [],
-        }
-      }
+      return { state: parseState(text), etag: file.blob.etag }
     }
   } catch (e) {
     console.error('[blob-io] loadState failed:', e)
   }
-  return defaultState()
+  return { state: defaultState() }
 }
 
-async function saveState(state: SiteState): Promise<void> {
+async function saveState(state: SiteState, etag?: string): Promise<void> {
   assertStorageConfigured()
-  const result = await put(STATE_PATH, JSON.stringify(state), {
+  await put(STATE_PATH, JSON.stringify(state), {
     access: 'private',
     token: blobToken(),
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: 'application/json',
+    ...(etag ? { ifMatch: etag } : {}),
   })
-  console.error('[blob-io] saved', result.pathname, 'users=', state.users.length, 'sessions=', state.sessions.length)
+}
+
+function isPreconditionError(e: unknown): boolean {
+  return e instanceof BlobPreconditionFailedError
+    || (e instanceof Error && e.name === 'BlobPreconditionFailedError')
 }
 
 export async function withState<T>(fn: (state: SiteState) => T | Promise<T>): Promise<T> {
   let lastError: unknown
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const state = await loadState()
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { state, etag } = await loadState()
     try {
       const result = await fn(state)
-      await saveState(state)
+      try {
+        await saveState(state, etag)
+      } catch (e) {
+        if (isPreconditionError(e) && attempt < 7) {
+          await new Promise((r) => setTimeout(r, 25 * (attempt + 1)))
+          continue
+        }
+        throw e
+      }
       return result
     } catch (e) {
+      if (e instanceof Error && /Trop de|déjà pris|invalide|incorrects|requis|vide/i.test(e.message)) {
+        throw e
+      }
       lastError = e
       await new Promise((r) => setTimeout(r, 40 * (attempt + 1)))
     }
@@ -199,7 +220,7 @@ export async function withState<T>(fn: (state: SiteState) => T | Promise<T>): Pr
 }
 
 export async function readState<T>(fn: (state: SiteState) => T): Promise<T> {
-  const state = await loadState()
+  const { state } = await loadState()
   return fn(state)
 }
 
