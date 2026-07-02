@@ -52,7 +52,7 @@ const statements = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
 ]
 
-for (const q of statements) await sql(q)
+for (const q of statements) await sql.query(q)
 
 await sql`CREATE INDEX IF NOT EXISTS idx_strokes_created ON strokes(created_at)`
 await sql`CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, updated_at DESC)`

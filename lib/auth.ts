@@ -1,6 +1,6 @@
 import { randomUUID, randomBytes } from 'crypto'
 import * as blob from './blob-store.js'
-import { hashPassword, validateUsername, verifyPassword } from './auth-core.js'
+import { hashPassword, validateUsername, verifyPassword, hashToken } from './auth-core.js'
 import { useBlobStorage, assertAuthDatabase } from './mode.js'
 import { ensureSchema, sql } from './sql.js'
 import type { PublicUser } from './types.js'
@@ -76,7 +76,6 @@ export async function createSession(userId: string): Promise<string> {
   await ensureSchema()
   const db = sql()
   const token = randomBytes(32).toString('hex')
-  const { hashToken } = await import('./auth-core')
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
   await db`INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (${randomUUID()}, ${userId}, ${hashToken(token)}, ${expiresAt})`
   return token
@@ -88,7 +87,6 @@ export async function getUserByToken(token: string | undefined): Promise<PublicU
   if (useBlobStorage()) return blob.blobGetUserByToken(token)
   await ensureSchema()
   const db = sql()
-  const { hashToken } = await import('./auth-core')
   const rows = await db`
     SELECT u.id, u.username, u.display_name, u.bio, u.created_at
     FROM sessions s JOIN users u ON u.id = s.user_id
@@ -112,7 +110,6 @@ export async function logoutToken(token: string | undefined): Promise<void> {
   if (useBlobStorage()) return blob.blobLogoutToken(token)
   await ensureSchema()
   const db = sql()
-  const { hashToken } = await import('./auth-core')
   await db`DELETE FROM sessions WHERE token_hash = ${hashToken(token)}`
 }
 

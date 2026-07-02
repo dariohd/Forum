@@ -7,7 +7,7 @@
     "dev": "vercel dev",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "db:init": "node scripts/init-db.mjs"
+    "db:init": "node --env-file=.env.local scripts/init-db.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
