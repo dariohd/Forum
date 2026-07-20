@@ -4,6 +4,8 @@ export type {
   CanvasImage,
   BoardSnapshot,
   PublicUser,
+  UserRole,
+  PageInfo,
   Forum,
   ThreadSummary,
   Reply,

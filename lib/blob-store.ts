@@ -23,6 +23,7 @@ import type {
   BoardSnapshot,
   CanvasImage,
   Forum,
+  PageInfo,
   PublicUser,
   Reply,
   SitePage,
@@ -32,6 +33,18 @@ import type {
   ThreadSummary,
   UserProfile,
 } from './types.js'
+
+const DEFAULT_PAGE_SIZE = 20
+const MAX_PAGE_SIZE = 50
+
+function paginate<T>(items: T[], page = 1, pageSize = DEFAULT_PAGE_SIZE): { items: T[]; page: PageInfo } {
+  const size = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(pageSize) || DEFAULT_PAGE_SIZE))
+  const total = items.length
+  const totalPages = Math.max(1, Math.ceil(total / size))
+  const current = Math.min(Math.max(1, Math.trunc(page) || 1), totalPages)
+  const start = (current - 1) * size
+  return { items: items.slice(start, start + size), page: { page: current, pageSize: size, total, totalPages } }
+}
 
 const SESSION_DAYS = 30
 
@@ -54,7 +67,7 @@ function mapImage(i: StateImage): CanvasImage {
 function authorPublic(auth: AuthState, authorId: string): PublicUser {
   const user = findUser(auth, authorId)
   if (user) return publicUser(user)
-  return { id: authorId, username: 'inconnu', displayName: 'Utilisateur', bio: '', createdAt: new Date(0).toISOString() }
+  return { id: authorId, username: 'inconnu', displayName: 'Utilisateur', bio: '', role: 'user', createdAt: new Date(0).toISOString() }
 }
 
 function threadSummary(state: SiteState, auth: AuthState, t: StateThread): ThreadSummary {
@@ -63,7 +76,11 @@ function threadSummary(state: SiteState, auth: AuthState, t: StateThread): Threa
     forumId: t.forumId,
     title: t.title,
     author: authorPublic(auth, t.authorId),
-    replyCount: state.replies.filter((r) => r.threadId === t.id).length,
+    replyCount: state.replies.filter((r) => r.threadId === t.id && !r.hiddenAt).length,
+    hidden: !!t.hiddenAt,
+    hiddenReason: t.hiddenReason,
+    hiddenBy: t.hiddenBy,
+    hiddenAt: t.hiddenAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -75,6 +92,10 @@ function mapReply(auth: AuthState, r: StateReply): Reply {
     threadId: r.threadId,
     content: r.content,
     author: authorPublic(auth, r.authorId),
+    hidden: !!r.hiddenAt,
+    hiddenReason: r.hiddenReason,
+    hiddenBy: r.hiddenBy,
+    hiddenAt: r.hiddenAt,
     createdAt: r.createdAt,
   }
 }
@@ -143,14 +164,16 @@ export async function blobRegisterUser(input: {
   const token = randomBytes(32).toString('hex')
   const tokenHash = hashToken(token)
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString()
+  let role: 'user' | 'moderator' | 'admin' = 'user'
 
   await withAuthState((state) => {
     if (state.users.some((u) => u.username === username)) throw new Error('Ce pseudo est déjà pris.')
-    state.users.push({ id, username, passwordHash, displayName, bio: '', createdAt })
+    role = state.users.length === 0 ? 'admin' : 'user'
+    state.users.push({ id, username, passwordHash, displayName, bio: '', role, createdAt })
     state.sessions.push({ id: randomUUID(), userId: id, tokenHash, expiresAt })
   })
 
-  return { user: { id, username, displayName, bio: '', createdAt }, token }
+  return { user: { id, username, displayName, bio: '', role, createdAt }, token }
 }
 
 export async function blobLoginUser(username: string, password: string): Promise<{ user: PublicUser; token: string }> {
@@ -214,21 +237,25 @@ export async function blobListForums(): Promise<Forum[]> {
         slug: f.slug,
         name: f.name,
         description: f.description,
-        threadCount: state.threads.filter((t) => t.forumId === f.id).length,
+        threadCount: state.threads.filter((t) => t.forumId === f.id && !t.hiddenAt).length,
         createdAt: f.createdAt,
       })),
   )
 }
 
-export async function blobGetForumBySlug(slug: string) {
+export async function blobGetForumBySlug(
+  slug: string,
+  opts: { page?: number; pageSize?: number; includeHidden?: boolean } = {},
+) {
   const auth = await readAuthState((a) => a)
   return readState((state) => {
     const f = state.forums.find((x) => x.slug === slug)
     if (!f) return null
-    const threads = state.threads
-      .filter((t) => t.forumId === f.id)
+    const visibleThreads = state.threads
+      .filter((t) => t.forumId === f.id && (opts.includeHidden || !t.hiddenAt))
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .map((t) => threadSummary(state, auth, t))
+
+    const { items, page } = paginate(visibleThreads, opts.page, opts.pageSize)
 
     return {
       forum: {
@@ -236,10 +263,11 @@ export async function blobGetForumBySlug(slug: string) {
         slug: f.slug,
         name: f.name,
         description: f.description,
-        threadCount: threads.length,
+        threadCount: state.threads.filter((t) => t.forumId === f.id && !t.hiddenAt).length,
         createdAt: f.createdAt,
       },
-      threads,
+      threads: items.map((t) => threadSummary(state, auth, t)),
+      page,
     }
   })
 }
@@ -249,7 +277,17 @@ export async function blobCreateThread(forumSlug: string, authorId: string, titl
   if (!cleanTitle) throw new Error('Titre vide.')
 
   const now = new Date().toISOString()
-  const thread: StateThread = { id: randomUUID(), forumId: '', authorId, title: cleanTitle, createdAt: now, updatedAt: now }
+  const thread: StateThread = {
+    id: randomUUID(),
+    forumId: '',
+    authorId,
+    title: cleanTitle,
+    hiddenAt: null,
+    hiddenBy: null,
+    hiddenReason: null,
+    createdAt: now,
+    updatedAt: now,
+  }
 
   await withState((state) => {
     const forum = state.forums.find((f) => f.slug === forumSlug)
@@ -265,25 +303,35 @@ export async function blobCreateThread(forumSlug: string, authorId: string, titl
   return threadSummary(state, auth, thread)
 }
 
-export async function blobGetThread(id: string): Promise<ThreadDetail | null> {
+export async function blobGetThread(
+  id: string,
+  opts: { page?: number; pageSize?: number; includeHidden?: boolean } = {},
+): Promise<ThreadDetail | null> {
   const [state, auth] = await Promise.all([
     readState((s) => s),
     readAuthState((a) => a),
   ])
   const t = state.threads.find((x) => x.id === id)
   if (!t) return null
+  if (t.hiddenAt && !opts.includeHidden) return null
   const forum = state.forums.find((f) => f.id === t.forumId)!
-  const replies = state.replies
-    .filter((r) => r.threadId === id)
+  const visibleReplies = state.replies
+    .filter((r) => r.threadId === id && (opts.includeHidden || !r.hiddenAt))
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .map((r) => mapReply(auth, r))
+
+  const { items, page } = paginate(visibleReplies, opts.page, opts.pageSize)
 
   return {
     id: t.id,
     title: t.title,
     forum: { id: forum.id, slug: forum.slug, name: forum.name },
     author: authorPublic(auth, t.authorId),
-    replies,
+    replies: items.map((r) => mapReply(auth, r)),
+    repliesPage: page,
+    hidden: !!t.hiddenAt,
+    hiddenReason: t.hiddenReason,
+    hiddenBy: t.hiddenBy,
+    hiddenAt: t.hiddenAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -293,7 +341,16 @@ export async function blobAddReply(threadId: string, authorId: string, content: 
   const clean = sanitizeText(content, 5000)
   if (!clean) throw new Error('Message vide.')
 
-  const reply: StateReply = { id: randomUUID(), threadId, authorId, content: clean, createdAt: new Date().toISOString() }
+  const reply: StateReply = {
+    id: randomUUID(),
+    threadId,
+    authorId,
+    content: clean,
+    hiddenAt: null,
+    hiddenBy: null,
+    hiddenReason: null,
+    createdAt: new Date().toISOString(),
+  }
 
   await withState((state) => {
     if (!state.threads.some((t) => t.id === threadId)) throw new Error('Sujet introuvable.')
@@ -304,6 +361,52 @@ export async function blobAddReply(threadId: string, authorId: string, content: 
 
   const auth = await readAuthState((a) => a)
   return mapReply(auth, reply)
+}
+
+export async function blobModerateThread(
+  threadId: string,
+  moderatorId: string,
+  hidden: boolean,
+  reason?: string,
+): Promise<void> {
+  await withState((state) => {
+    const t = state.threads.find((x) => x.id === threadId)
+    if (!t) throw new Error('Sujet introuvable.')
+    t.hiddenAt = hidden ? new Date().toISOString() : null
+    t.hiddenBy = hidden ? moderatorId : null
+    t.hiddenReason = hidden ? (reason?.trim().slice(0, 200) || null) : null
+  })
+}
+
+export async function blobModerateReply(
+  threadId: string,
+  replyId: string,
+  moderatorId: string,
+  hidden: boolean,
+  reason?: string,
+): Promise<void> {
+  await withState((state) => {
+    const r = state.replies.find((x) => x.id === replyId && x.threadId === threadId)
+    if (!r) throw new Error('Réponse introuvable.')
+    r.hiddenAt = hidden ? new Date().toISOString() : null
+    r.hiddenBy = hidden ? moderatorId : null
+    r.hiddenReason = hidden ? (reason?.trim().slice(0, 200) || null) : null
+  })
+}
+
+export async function blobDeleteThread(threadId: string): Promise<void> {
+  await withState((state) => {
+    if (!state.threads.some((t) => t.id === threadId)) throw new Error('Sujet introuvable.')
+    state.threads = state.threads.filter((t) => t.id !== threadId)
+    state.replies = state.replies.filter((r) => r.threadId !== threadId)
+  })
+}
+
+export async function blobDeleteReply(threadId: string, replyId: string): Promise<void> {
+  await withState((state) => {
+    if (!state.replies.some((r) => r.id === replyId && r.threadId === threadId)) throw new Error('Réponse introuvable.')
+    state.replies = state.replies.filter((r) => r.id !== replyId)
+  })
 }
 
 export async function blobListPages(): Promise<SitePage[]> {

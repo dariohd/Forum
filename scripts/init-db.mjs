@@ -27,6 +27,7 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -39,23 +40,33 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY, forum_id TEXT NOT NULL REFERENCES forums(id) ON DELETE CASCADE,
     author_id TEXT NOT NULL REFERENCES users(id), title TEXT NOT NULL,
+    hidden_at TIMESTAMPTZ, hidden_by TEXT REFERENCES users(id), hidden_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS replies (
     id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
     author_id TEXT NOT NULL REFERENCES users(id), content TEXT NOT NULL,
+    hidden_at TIMESTAMPTZ, hidden_by TEXT REFERENCES users(id), hidden_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
   `CREATE TABLE IF NOT EXISTS pages (
     id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, content TEXT NOT NULL,
     author_id TEXT REFERENCES users(id), published BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`,
+  `ALTER TABLE threads ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ`,
+  `ALTER TABLE threads ADD COLUMN IF NOT EXISTS hidden_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE threads ADD COLUMN IF NOT EXISTS hidden_reason TEXT`,
+  `ALTER TABLE replies ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ`,
+  `ALTER TABLE replies ADD COLUMN IF NOT EXISTS hidden_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE replies ADD COLUMN IF NOT EXISTS hidden_reason TEXT`,
 ]
 
 for (const q of statements) await sql.query(q)
 
 await sql`CREATE INDEX IF NOT EXISTS idx_strokes_created ON strokes(created_at)`
 await sql`CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, updated_at DESC)`
+await sql`CREATE INDEX IF NOT EXISTS idx_replies_thread ON replies(thread_id, created_at)`
 
 const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM forums`
 if (c === 0) {

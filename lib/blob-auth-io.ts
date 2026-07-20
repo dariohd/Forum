@@ -25,7 +25,7 @@ async function loadAuth(): Promise<{ state: AuthState; etag?: string }> {
       const parsed = JSON.parse(await new Response(file.stream).text()) as Partial<AuthState>
       return {
         state: {
-          users: parsed.users ?? [],
+          users: (parsed.users ?? []).map((u) => ({ ...u, role: u.role ?? 'user' })),
           sessions: parsed.sessions ?? [],
         },
         etag: file.blob.etag,
@@ -100,6 +100,7 @@ export function publicUser(u: StateUser) {
     username: u.username,
     displayName: u.displayName,
     bio: u.bio,
+    role: u.role,
     createdAt: u.createdAt,
   }
 }

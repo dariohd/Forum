@@ -87,9 +87,11 @@ export async function ensureSchema() {
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL,
       bio TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await db`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`
   await db`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -115,19 +117,31 @@ export async function ensureSchema() {
       forum_id TEXT NOT NULL REFERENCES forums(id) ON DELETE CASCADE,
       author_id TEXT NOT NULL REFERENCES users(id),
       title TEXT NOT NULL,
+      hidden_at TIMESTAMPTZ,
+      hidden_by TEXT REFERENCES users(id),
+      hidden_reason TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await db`ALTER TABLE threads ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ`
+  await db`ALTER TABLE threads ADD COLUMN IF NOT EXISTS hidden_by TEXT REFERENCES users(id)`
+  await db`ALTER TABLE threads ADD COLUMN IF NOT EXISTS hidden_reason TEXT`
   await db`
     CREATE TABLE IF NOT EXISTS replies (
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
       author_id TEXT NOT NULL REFERENCES users(id),
       content TEXT NOT NULL,
+      hidden_at TIMESTAMPTZ,
+      hidden_by TEXT REFERENCES users(id),
+      hidden_reason TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await db`ALTER TABLE replies ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ`
+  await db`ALTER TABLE replies ADD COLUMN IF NOT EXISTS hidden_by TEXT REFERENCES users(id)`
+  await db`ALTER TABLE replies ADD COLUMN IF NOT EXISTS hidden_reason TEXT`
   await db`
     CREATE TABLE IF NOT EXISTS pages (
       id TEXT PRIMARY KEY,

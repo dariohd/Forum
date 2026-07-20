@@ -27,14 +27,17 @@ export async function registerUser(input: {
   const passwordHash = await hashPassword(input.password)
   const id = randomUUID()
 
+  const [{ c: existingUsers }] = await db`SELECT COUNT(*)::int AS c FROM users` as { c: number }[]
+  const role = existingUsers === 0 ? 'admin' : 'user'
+
   try {
-    await db`INSERT INTO users (id, username, password_hash, display_name) VALUES (${id}, ${username}, ${passwordHash}, ${displayName})`
+    await db`INSERT INTO users (id, username, password_hash, display_name, role) VALUES (${id}, ${username}, ${passwordHash}, ${displayName}, ${role})`
   } catch {
     throw new Error('Ce pseudo est déjà pris.')
   }
 
   const token = await createSession(id)
-  return { user: { id, username, displayName, bio: '', createdAt: new Date().toISOString() }, token }
+  return { user: { id, username, displayName, bio: '', role, createdAt: new Date().toISOString() }, token }
 }
 
 export async function loginUser(username: string, password: string): Promise<{ user: PublicUser; token: string }> {
@@ -47,9 +50,9 @@ export async function loginUser(username: string, password: string): Promise<{ u
   if (!name) throw new Error('Identifiants incorrects.')
 
   const rows = await db`
-    SELECT id, username, password_hash, display_name, bio, created_at
+    SELECT id, username, password_hash, display_name, bio, role, created_at
     FROM users WHERE username = ${name}
-  ` as { id: string; username: string; password_hash: string; display_name: string; bio: string; created_at: string }[]
+  ` as { id: string; username: string; password_hash: string; display_name: string; bio: string; role: PublicUser['role']; created_at: string }[]
 
   const row = rows[0]
   if (!row || !(await verifyPassword(password, row.password_hash))) {
@@ -63,6 +66,7 @@ export async function loginUser(username: string, password: string): Promise<{ u
       username: row.username,
       displayName: row.display_name,
       bio: row.bio,
+      role: row.role,
       createdAt: new Date(row.created_at).toISOString(),
     },
     token,
@@ -88,10 +92,10 @@ export async function getUserByToken(token: string | undefined): Promise<PublicU
   await ensureSchema()
   const db = sql()
   const rows = await db`
-    SELECT u.id, u.username, u.display_name, u.bio, u.created_at
+    SELECT u.id, u.username, u.display_name, u.bio, u.role, u.created_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ${hashToken(token)} AND s.expires_at > NOW()
-  ` as { id: string; username: string; display_name: string; bio: string; created_at: string }[]
+  ` as { id: string; username: string; display_name: string; bio: string; role: PublicUser['role']; created_at: string }[]
 
   const row = rows[0]
   if (!row) return null
@@ -100,6 +104,7 @@ export async function getUserByToken(token: string | undefined): Promise<PublicU
     username: row.username,
     displayName: row.display_name,
     bio: row.bio,
+    role: row.role,
     createdAt: new Date(row.created_at).toISOString(),
   }
 }
@@ -116,5 +121,15 @@ export async function logoutToken(token: string | undefined): Promise<void> {
 export async function requireUser(token: string | undefined): Promise<PublicUser> {
   const user = await getUserByToken(token)
   if (!user) throw new Error('Connexion requise.')
+  return user
+}
+
+export function isModerator(user: PublicUser): boolean {
+  return user.role === 'moderator' || user.role === 'admin'
+}
+
+export async function requireModerator(token: string | undefined): Promise<PublicUser> {
+  const user = await requireUser(token)
+  if (!isModerator(user)) throw new Error('Action réservée aux modérateurs.')
   return user
 }

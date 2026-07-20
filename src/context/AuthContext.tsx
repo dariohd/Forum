@@ -5,6 +5,7 @@ import * as api from '../lib/site'
 interface AuthState {
   user: PublicUser | null
   loading: boolean
+  isModerator: boolean
   login: (username: string, password: string) => Promise<void>
   register: (username: string, password: string, displayName: string) => Promise<void>
   logout: () => Promise<void>
@@ -44,8 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const isModerator = user?.role === 'admin' || user?.role === 'moderator'
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, isModerator, login, register, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )

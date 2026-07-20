@@ -378,7 +378,6 @@ body {
 }
 
 .forum-card,
-.thread-row,
 .page-card {
   display: flex;
   flex-direction: column;
@@ -393,15 +392,49 @@ body {
 }
 
 .forum-card:hover,
-.thread-row:hover,
 .page-card:hover {
   border-color: var(--accent);
 }
 
-.forum-card span,
+.forum-card span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.thread-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #12121a;
+  transition: border-color 0.15s;
+}
+
+.thread-row:hover {
+  border-color: var(--accent);
+}
+
+.thread-row > a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
 .thread-row span {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.thread-row-hidden .thread-row {
+  border-color: var(--danger);
+  opacity: 0.7;
 }
 
 .forum-card em {
@@ -527,4 +560,88 @@ body {
   margin: 0.15rem 0 0;
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.mod-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+}
+
+.thread-row .mod-actions {
+  margin-top: 0;
+}
+
+.mod-btn {
+  font: inherit;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.mod-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.mod-btn-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.mod-btn-danger:hover {
+  color: #fff;
+  background: var(--danger);
+}
+
+.mod-banner {
+  font-size: 0.85rem;
+  color: var(--danger);
+  background: rgba(232, 93, 111, 0.1);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.mod-banner-small {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.reply-card-hidden {
+  border-color: var(--danger);
+  opacity: 0.8;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.pagination button {
+  font: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }

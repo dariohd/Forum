@@ -19,6 +19,8 @@ Application forum full-stack : threads, réponses, pièces jointes — React + A
 ## Fonctionnalités
 
 - Création de **threads** et **réponses**
+- **Pagination** des sujets et des réponses (20 par page)
+- **Modération** : masquage ou suppression des sujets/réponses par un admin ou modérateur
 - **Upload de fichiers** (stockage Blob)
 - Interface React responsive
 - API REST serverless compatible production Vercel
@@ -81,6 +83,7 @@ npm run dev:local
 | `npm run build` | `tsc` + `vite build` |
 | `npm run preview` | Preview build Vite |
 | `npm run db:init` | Crée les tables Neon |
+| `npm run role:set -- <pseudo> <user\|moderator\|admin>` | Change le rôle d'un compte |
 
 ## Déploiement Vercel
 
@@ -89,11 +92,21 @@ npm run dev:local
 3. `npm run db:init` une fois contre la base de prod
 4. Push GitHub ou `npx vercel deploy --prod`
 
+## Modération
+
+Le premier compte créé sur une base vierge devient automatiquement **admin**. Pour promouvoir un compte existant :
+
+```bash
+npx vercel env pull .env.local
+npm run role:set -- <pseudo> admin
+```
+
+Rôles : `user` (défaut), `moderator`, `admin`. Les deux derniers peuvent masquer ou supprimer un sujet/réponse depuis les pages Forum et Sujet.
+
 ## Pistes d'évolution
 
-- Modération admin
-- Pagination threads
 - Notifications email
+- Recherche dans les sujets
 
 ## Contact
 

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireUser } from '../../lib/auth.js'
+import { getUserByToken, isModerator, requireUser } from '../../lib/auth.js'
 import { createThread, getForumBySlug } from '../../lib/forum.js'
 import { getSessionToken } from '../../lib/http.js'
 import { checkRateLimit, clientIp } from '../../lib/security.js'
@@ -10,7 +10,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'GET') {
-      const data = await getForumBySlug(slug)
+      const viewer = await getUserByToken(getSessionToken(req))
+      const page = Number(req.query.page)
+      const pageSize = Number(req.query.pageSize)
+      const data = await getForumBySlug(slug, {
+        page: Number.isFinite(page) ? page : undefined,
+        pageSize: Number.isFinite(pageSize) ? pageSize : undefined,
+        includeHidden: !!viewer && isModerator(viewer),
+      })
       if (!data) return res.status(404).json({ error: 'Forum introuvable' })
       return res.status(200).json(data)
     }

@@ -1,4 +1,4 @@
-import type { Forum, PublicUser, Reply, SitePage, ThreadDetail, ThreadSummary, UserProfile } from '../types'
+import type { Forum, PageInfo, PublicUser, Reply, SitePage, ThreadDetail, ThreadSummary, UserProfile } from '../types'
 
 async function parse<T>(res: Response): Promise<T> {
   const data = await res.json()
@@ -42,8 +42,10 @@ export async function fetchForums() {
   return parse<{ forums: Forum[] }>(await fetch('/api/forums'))
 }
 
-export async function fetchForum(slug: string) {
-  return parse<{ forum: Forum; threads: ThreadSummary[] }>(await fetch(`/api/forums/${slug}`))
+export async function fetchForum(slug: string, page = 1) {
+  return parse<{ forum: Forum; threads: ThreadSummary[]; page: PageInfo }>(
+    await fetch(`/api/forums/${slug}?page=${page}`, { credentials: 'include' }),
+  )
 }
 
 export async function createThread(slug: string, title: string) {
@@ -57,8 +59,10 @@ export async function createThread(slug: string, title: string) {
   )
 }
 
-export async function fetchThread(id: string) {
-  return parse<{ thread: ThreadDetail }>(await fetch(`/api/threads/${id}`))
+export async function fetchThread(id: string, page = 1) {
+  return parse<{ thread: ThreadDetail }>(
+    await fetch(`/api/threads/${id}?page=${page}`, { credentials: 'include' }),
+  )
 }
 
 export async function postReply(threadId: string, content: string) {
@@ -69,6 +73,40 @@ export async function postReply(threadId: string, content: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
     }),
+  )
+}
+
+export async function moderateThread(threadId: string, hidden: boolean, reason?: string) {
+  return parse<{ ok: true }>(
+    await fetch(`/api/threads/${threadId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden, reason }),
+    }),
+  )
+}
+
+export async function moderateReply(threadId: string, replyId: string, hidden: boolean, reason?: string) {
+  return parse<{ ok: true }>(
+    await fetch(`/api/threads/${threadId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden, reason, replyId }),
+    }),
+  )
+}
+
+export async function deleteThread(threadId: string) {
+  return parse<{ ok: true }>(
+    await fetch(`/api/threads/${threadId}`, { method: 'DELETE', credentials: 'include' }),
+  )
+}
+
+export async function deleteReply(threadId: string, replyId: string) {
+  return parse<{ ok: true }>(
+    await fetch(`/api/threads/${threadId}?replyId=${replyId}`, { method: 'DELETE', credentials: 'include' }),
   )
 }
 

@@ -13,6 +13,7 @@ export type StateUser = {
   passwordHash: string
   displayName: string
   bio: string
+  role: 'user' | 'moderator' | 'admin'
   createdAt: string
 }
 
@@ -37,6 +38,9 @@ export type StateThread = {
   forumId: string
   authorId: string
   title: string
+  hiddenAt: string | null
+  hiddenBy: string | null
+  hiddenReason: string | null
   createdAt: string
   updatedAt: string
 }
@@ -46,6 +50,9 @@ export type StateReply = {
   threadId: string
   authorId: string
   content: string
+  hiddenAt: string | null
+  hiddenBy: string | null
+  hiddenReason: string | null
   createdAt: string
 }
 
@@ -134,14 +141,41 @@ Les pages regroupent les contenus permanents du site.`,
   }
 }
 
+function normalizeThread(t: Partial<StateThread>): StateThread {
+  return {
+    id: t.id!,
+    forumId: t.forumId!,
+    authorId: t.authorId!,
+    title: t.title!,
+    hiddenAt: t.hiddenAt ?? null,
+    hiddenBy: t.hiddenBy ?? null,
+    hiddenReason: t.hiddenReason ?? null,
+    createdAt: t.createdAt!,
+    updatedAt: t.updatedAt!,
+  }
+}
+
+function normalizeReply(r: Partial<StateReply>): StateReply {
+  return {
+    id: r.id!,
+    threadId: r.threadId!,
+    authorId: r.authorId!,
+    content: r.content!,
+    hiddenAt: r.hiddenAt ?? null,
+    hiddenBy: r.hiddenBy ?? null,
+    hiddenReason: r.hiddenReason ?? null,
+    createdAt: r.createdAt!,
+  }
+}
+
 function parseState(text: string): SiteState {
   const parsed = JSON.parse(text) as Partial<SiteState> & { users?: unknown; sessions?: unknown; rateEvents?: unknown }
   if (parsed && Array.isArray(parsed.forums)) {
     return {
       ...defaultState(),
       ...parsed,
-      threads: parsed.threads ?? [],
-      replies: parsed.replies ?? [],
+      threads: (parsed.threads ?? []).map(normalizeThread),
+      replies: (parsed.replies ?? []).map(normalizeReply),
       strokes: parsed.strokes ?? [],
       texts: parsed.texts ?? [],
       images: parsed.images ?? [],

@@ -37,12 +37,29 @@ export interface BoardSnapshot {
   serverTime: string
 }
 
+export type UserRole = 'user' | 'moderator' | 'admin'
+
 export interface PublicUser {
   id: string
   username: string
   displayName: string
   bio: string
+  role: UserRole
   createdAt: string
+}
+
+export interface PageInfo {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
+
+export interface Moderation {
+  hidden: boolean
+  hiddenReason: string | null
+  hiddenBy: string | null
+  hiddenAt: string | null
 }
 
 export interface Forum {
@@ -54,7 +71,7 @@ export interface Forum {
   createdAt: string
 }
 
-export interface ThreadSummary {
+export interface ThreadSummary extends Moderation {
   id: string
   forumId: string
   title: string
@@ -64,7 +81,7 @@ export interface ThreadSummary {
   updatedAt: string
 }
 
-export interface Reply {
+export interface Reply extends Moderation {
   id: string
   threadId: string
   author: PublicUser
@@ -72,12 +89,13 @@ export interface Reply {
   createdAt: string
 }
 
-export interface ThreadDetail {
+export interface ThreadDetail extends Moderation {
   id: string
   forum: { id: string; slug: string; name: string }
   title: string
   author: PublicUser
   replies: Reply[]
+  repliesPage: PageInfo
   createdAt: string
   updatedAt: string
 }
